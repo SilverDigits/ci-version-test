@@ -2,12 +2,12 @@
 name: CI (Windows .NET Framework Unified)
 
 on:
-  #push:
-  #  branches:
-  #    - '**'
-  #  tags:
-  #    - 'v*'
-  #pull_request:
+  push:
+   branches:
+     - '**'
+   tags:
+     - 'v*'
+  pull_request:
   workflow_dispatch:
     inputs:
       create_release:
