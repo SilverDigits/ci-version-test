@@ -19,3 +19,6 @@ branches:
     regex: ^(?!main$).+
     label: beta
     increment: Inherit
+
+ignore:
+  sha: []
