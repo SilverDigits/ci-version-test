@@ -1,0 +1,92 @@
+
+name: CI (Windows .NET Framework Unified)
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: "Create Production Release?"
+        type: choice
+        options:
+          - "no"
+          - "yes"
+        required: false
+        default: "no"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # GitVersion 6.4.x setup
+      - name: Setup GitVersion
+        uses: gittools/actions/gitversion/setup@v4.2.0
+        with:
+          versionSpec: '6.4.x'
+
+      - name: Determine Version
+        id: gitversion
+        uses: gittools/actions/gitversion/execute@v4.2.0
+
+      - name: Display Versions
+        run: |
+            Write-Host "semVer: $env:GitVersion_SemVer"
+            Write-Host "branchName: $env:GitVersion_BranchName"
+            Write-Host "escapedBranchName: $env:GitVersion_EscapedBranchName"
+            Write-Host "major: $env:GitVersion_Major"
+            Write-Host "minor: $env:GitVersion_Minor"
+            Write-Host "patch: $env:GitVersion_Patch"
+            Write-Host "preReleaseTag: $env:GitVersion_PreReleaseTag"
+            Write-Host "preReleaseTagWithDash: $env:GitVersion_PreReleaseTagWithDash"
+            Write-Host "preReleaseLabel: $env:GitVersion_PreReleaseLabel"
+            Write-Host "preReleaseNumber: $env:GitVersion_PreReleaseNumber"
+            Write-Host "weightedPreReleaseNumber: $env:GitVersion_WeightedPreReleaseNumber"
+            Write-Host "buildMetaData: $env:GitVersion_BuildMetaData"
+            Write-Host "fullBuildMetaData: $env:GitVersion_FullBuildMetaData"
+            Write-Host "majorMinorPatch: $env:GitVersion_MajorMinorPatch"
+            Write-Host "assemblySemVer: $env:GitVersion_AssemblySemVer"
+            Write-Host "assemblySemFileVer: $env:GitVersion_AssemblySemFileVer"
+            Write-Host "fullSemVer: $env:GitVersion_FullSemVer"
+            Write-Host "informationalVersion: $env:GitVersion_InformationalVersion"
+            Write-Host "sha: $env:GitVersion_Sha"
+            Write-Host "shortSha: $env:GitVersion_ShortSha"
+            Write-Host "versionSourceSha: $env:GitVersion_VersionSourceSha"
+            Write-Host "commitsSinceVersionSource: $env:GitVersion_CommitsSinceVersionSource"
+            Write-Host "uncommittedChanges: $env:GitVersion_UncommittedChanges"
+            Write-Host "commitDate: $env:GitVersion_CommitDate"
+
+
+      # -------------------------------------------
+      # CREATE TAG (only if manually triggered)
+      # -------------------------------------------
+      - name: Create Release Tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+        run: |
+          $tag = "v$env:GitVersion_SemVer"
+          Write-Host "Tagging release as $tag"
+          # git config user.name "github-actions"
+          # git config user.email "github-actions@github.com"
+          # git tag $tag
+          # git push origin $tag
+
+      # Re-checkout tag if one was just created
+      # - name: Checkout Tag for Release
+      #   if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+      #   uses: actions/checkout@v4
+      #   with:
+      #     fetch-depth: 0
+      #     ref: v${{ steps.gitversion.outputs.SemVer }}
+
+
+     
