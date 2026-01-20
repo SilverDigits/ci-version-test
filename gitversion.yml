@@ -3,6 +3,11 @@ mode: ContinuousDelivery
 
 next-version: 4.1.0
 
+major-version-bump-message: '\+semver:\s?(breaking|major)'
+minor-version-bump-message: '\+semver:\s?(feature|minor)'
+patch-version-bump-message: '\+semver:\s?(fix|patch)'
+commit-message-incrementing: Enabled
+
 branches:
   main:
     regex: ^main$
@@ -11,6 +16,11 @@ branches:
     is-main-branch: true
 
   default:
-    regex: .*
+    regex: ^(?!main$).+
     label: beta
     increment: Inherit
+    
+ignore:
+  sha: []
+  paths:
+    - ^docs\/
