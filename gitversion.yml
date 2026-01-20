@@ -1,6 +1,9 @@
+
 mode: ContinuousDelivery
+
 next-version: 4.1.0
 commit-message-incrementing: Enabled
+
 major-version-bump-message: "BREAKING CHANGE"
 minor-version-bump-message: "^feat"
 patch-version-bump-message: "^(fix|perf)"
@@ -9,10 +12,10 @@ branches:
   main:
     regex: ^main$
     label: rc
-    increment: Inherit 
+    increment: Inherit
     is-main-branch: true
 
   default:
     regex: ^(?!main$).+
     label: beta
-    increment: Inherit 
+    increment: Inherit
