@@ -15,5 +15,6 @@ branches:
     is-main-branch: true
 
   default:
+    regex: ^(?!main$).+
     label: beta
     increment: Inherit 
