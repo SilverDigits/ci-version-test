@@ -1,5 +1,5 @@
 
-mode: ContinuousDelivery
+mode: ContinuousDeployment
 
 next-version: 4.1.0
 
