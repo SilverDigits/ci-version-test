@@ -1,5 +1,5 @@
 
-mode: ContinuousDeployment
+mode: ContinuousDelivery
 
 next-version: 4.1.0
 
@@ -12,15 +12,15 @@ branches:
   main:
     regex: ^main$
     label: rc
-    increment: Inherit
+#    increment: Inherit
     is-main-branch: true
 
-  default:
-    regex: ^(?!main$).+
-    label: beta
-    increment: Inherit
+ # default:
+ #   regex: ^(?!main$).+$
+ #   label: beta
+ #   increment: Inherit
     
-ignore:
-  sha: []
-  paths:
-    - ^docs\/
+#ignore:
+#  sha: []
+#  paths:
+#    - ^docs\/
