@@ -76,18 +76,18 @@ jobs:
         run: |
           $tag = "v$env:GitVersion_SemVer"
           Write-Host "Tagging release as $tag"
-          # git config user.name "github-actions"
-          # git config user.email "github-actions@github.com"
-          # git tag $tag
-          # git push origin $tag
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag $tag
+          git push origin $tag
 
       # Re-checkout tag if one was just created
-      # - name: Checkout Tag for Release
-      #   if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
-      #   uses: actions/checkout@v4
-      #   with:
-      #     fetch-depth: 0
-      #     ref: v${{ steps.gitversion.outputs.SemVer }}
+      - name: Checkout Tag for Release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: v${{ steps.gitversion.outputs.SemVer }}
 
 
      
