@@ -29,6 +29,9 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # -------------------------------------------
+      # Checkout
+      # -------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -183,80 +186,19 @@ jobs:
               Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
             }
 
-      # -------------------------------------------
-      # Setup MSBuild
-      # -------------------------------------------
-      # - name: Setup MSBuild
-      #   uses: microsoft/setup-msbuild@v2
+  # package:
+  #   name: Push Packages
+  #   runs-on: ubuntu-latest
+  #   needs: ci
+  #   if: needs.ci.ouputs.should_release == 'true'
 
-      # - name: Restore NuGet packages
-      #   run: nuget restore DotNetReleaseExample.sln
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      # - name: Build (.NET Framework via MSBuild)
-      #   run: msbuild DotNetReleaseExample.sln `
-      #         /p:Configuration=Release `
-      #         /p:Version=$env:GitVersion_SemVer `
-      #         /p:AssemblyVersion=$env:GitVersion_AssemblySemVer `
-      #         /p:FileVersion=$env:GitVersion_AssemblyFileSemVer `
-      #         /p:InformationalVersion=$env:GitVersion_InformationalVersion
-
-
-      # -------------------------------------------
-      # PACKAGING — .NET Framework uses NuGet pack
-      # -------------------------------------------
-      # - name: Pack NuGet
-      #   run: |
-      #     nuget pack YourProject.csproj `
-      #       -Properties Configuration=Release `
-      #       -Version $env:GitVersion_SemVer `
-      #       -OutputDirectory artifacts
-
-      # - name: Upload Build Artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: build-${{ steps.gitversion.outputs.SemVer }}
-      #     path: artifacts/*.nupkg
-
-      # -------------------------------------------
-      # RELEASE STEPS — Only from tags OR manual release
-      # -------------------------------------------
-      # - name: Publish to NuGet
-      #   if: |
-      #     startsWith(github.ref, 'refs/tags/v')
-      #     || (github.event_name == 'workflow_dispatch' && inputs.create_release == 'true')
-      #   run: |
-      #     nuget push artifacts\*.nupkg `
-      #       -Source https://api.nuget.org/v3/index.json `
-      #       -ApiKey $env:NUGET_API_KEY `
-      #       -SkipDuplicate
-      #   env:
-      #     NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-
-      # - name: Create GitHub Release
-      #   if: |
-      #     startsWith(github.ref, 'refs/tags/v')
-      #     || (github.event_name == 'workflow_dispatch' && inputs.create_release == 'true')
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: v${{ steps.gitversion.outputs.SemVer }}
-      #     name: Release ${{ steps.gitversion.outputs.SemVer }}
-      #     generate_release_notes: true
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  package:
-    name: Push Packages
-    runs-on: ubuntu-latest
-    needs: ci
-    if: needs.ci.ouputs.should_release == 'true'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Packaging Options
-        run: |
-          echo "should_release = ${{ needs.ci.outputs.should_release }}"
-          echo "image_version  = ${{ needs.ci.outputs.image_version }}"
-          echo "image_name     = ${{ needs.ci.outputs.image_name }}"
+  #     - name: Packaging Options
+  #       run: |
+  #         echo "should_release = ${{ needs.ci.outputs.should_release }}"
+  #         echo "image_version  = ${{ needs.ci.outputs.image_version }}"
+  #         echo "image_name     = ${{ needs.ci.outputs.image_name }}"
 
