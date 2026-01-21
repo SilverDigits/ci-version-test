@@ -179,12 +179,18 @@ jobs:
       - name: Validate no hard-coded version attributes remain
         shell: pwsh
         run: |
-            $hits = Select-String -Path (Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb) `
-              -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
-              | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
+            $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb -ErrorAction SilentlyContinue
+            if (-not $files) {
+                Write-Host "No AssemblyInfo.cs or AssemblyInfo.vb files found. Skipping version attribute validation."
+                exit 0
+            }
+
+            $hits = Select-String -Path $files `
+                -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
+                | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
 
             if ($hits) {
-              Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
+                Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
             }
 
   package:
