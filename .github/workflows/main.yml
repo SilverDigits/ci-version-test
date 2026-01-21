@@ -3,11 +3,9 @@ name: CI (Windows .NET Framework Unified)
 
 on:
   push:
-   branches:
-     - '**'
-   tags:
-     - 'v*'
+   branches: [ "main", "staging" ]
   pull_request:
+   branches: [ "main", "staging" ]
   workflow_dispatch:
     inputs:
       create_release:
@@ -20,10 +18,14 @@ on:
         default: "no"
 
 permissions:
-  contents: write
+  contents: write      # needed to create tags/releases
+  packages: write      # needed for GHCR push
+  id-token: write      # optional if you use OIDC for cloud deploys
+  actions: read
+
 
 jobs:
-  build:
+  ci:
     runs-on: windows-latest
 
     steps:
@@ -33,12 +35,34 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      # GitVersion 6.4.x setup
+      # -------------------------------------------
+      # Compute Release Gates
+      # -------------------------------------------
+      - name: Compute release gates
+        id: gates
+        shell: pwsh
+        run: |
+          $isPush    = '${{ github.event_name }}' -eq 'push'
+          $isMain    = '${{ github.ref }}' -eq 'refs/heads/main'
+          $isStaging = '${{ github.ref }}' -eq 'refs/heads/staging'
+          $shouldRelease = $isPush -and ($isMain -or $isStaging)
+
+          "is_push=$isPush"             | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "is_main=$isMain"             | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "is_staging=$isStaging"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "should_release=$shouldRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      # -------------------------------------------
+      # Setup GitVersion 6.4.x setup
+      # -------------------------------------------
       - name: Setup GitVersion
         uses: gittools/actions/gitversion/setup@v4.2.0
         with:
           versionSpec: '6.4.x'
 
+      # -------------------------------------------
+      # Determine Version
+      # -------------------------------------------
       - name: Determine Version
         id: gitversion
         uses: gittools/actions/gitversion/execute@v4.2.0
@@ -72,10 +96,12 @@ jobs:
 
 
       # -------------------------------------------
-      # CREATE TAG (only if manually triggered)
+      # Create Release Tag (push to staging and main only)
       # -------------------------------------------
       - name: Create Release Tag
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+        id: tags
+        #if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+        if: steps.gates.outputs.should_release
         run: |
           $tag = "v$env:GitVersion_SemVer"
           Write-Host "Tagging release as $tag"
@@ -84,13 +110,153 @@ jobs:
           git tag $tag
           git push origin $tag
 
+      # -------------------------------------------
       # Re-checkout tag if one was just created
+      # -------------------------------------------
       - name: Checkout Tag for Release
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.create_release == 'yes' }}
+        if: steps.gates.outputs.should_release
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: v${{ steps.gitversion.outputs.SemVer }}
 
 
-     
+      # -------------------------------------------
+      # Neutralize AssemblyInfo version attributes
+      # -------------------------------------------
+      - name: Neutralize AssemblyInfo version attributes
+        shell: pwsh
+        run: |
+            $patterns = @(
+              '^\s*\[\s*assembly\s*:\s*AssemblyVersion\s*\(',
+              '^\s*\[\s*assembly\s*:\s*AssemblyFileVersion\s*\(',
+              '^\s*\[\s*assembly\s*:\s*AssemblyInformationalVersion\s*\('
+            )
+
+            $vbPatterns = @(
+              '^\s*<\s*Assembly\s*:\s*AssemblyVersion\s*\(',
+              '^\s*<\s*Assembly\s*:\s*AssemblyFileVersion\s*\(',
+              '^\s*<\s*Assembly\s*:\s*AssemblyInformationalVersion\s*\('
+            )
+
+            $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs, AssemblyInfo.vb -ErrorAction SilentlyContinue
+
+            foreach ($file in $files) {
+              $lines = Get-Content -LiteralPath $file.FullName
+              $changed = $false
+
+              for ($i = 0; $i -lt $lines.Length; $i++) {
+                $line = $lines[$i]
+
+                if ($file.Extension -eq '.cs') {
+                  if ($patterns | Where-Object { $line -match $_ }) {
+                    if ($line -notmatch '^\s*//') {
+                      $lines[$i] = "// $line"
+                      $changed = $true
+                    }
+                  }
+                }
+                else {
+                  if ($vbPatterns | Where-Object { $line -match $_ }) {
+                    if ($line -notmatch "^\s*'") {
+                      $lines[$i] = "`' $line"
+                      $changed = $true
+                    }
+                  }
+                }
+              }
+
+              if ($changed) {
+                Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
+                Write-Host "Neutralized version attributes in $($file.FullName)"
+              }
+            }
+
+      - name: Validate no hard-coded version attributes remain
+        shell: pwsh
+        run: |
+            $hits = Select-String -Path (Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb) `
+              -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
+              | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
+
+            if ($hits) {
+              Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
+            }
+
+      # -------------------------------------------
+      # Setup MSBuild
+      # -------------------------------------------
+      # - name: Setup MSBuild
+      #   uses: microsoft/setup-msbuild@v2
+
+      # - name: Restore NuGet packages
+      #   run: nuget restore DotNetReleaseExample.sln
+
+      # - name: Build (.NET Framework via MSBuild)
+      #   run: msbuild DotNetReleaseExample.sln `
+      #         /p:Configuration=Release `
+      #         /p:Version=$env:GitVersion_SemVer `
+      #         /p:AssemblyVersion=$env:GitVersion_AssemblySemVer `
+      #         /p:FileVersion=$env:GitVersion_AssemblyFileSemVer `
+      #         /p:InformationalVersion=$env:GitVersion_InformationalVersion
+
+
+      # -------------------------------------------
+      # PACKAGING — .NET Framework uses NuGet pack
+      # -------------------------------------------
+      # - name: Pack NuGet
+      #   run: |
+      #     nuget pack YourProject.csproj `
+      #       -Properties Configuration=Release `
+      #       -Version $env:GitVersion_SemVer `
+      #       -OutputDirectory artifacts
+
+      # - name: Upload Build Artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: build-${{ steps.gitversion.outputs.SemVer }}
+      #     path: artifacts/*.nupkg
+
+      # -------------------------------------------
+      # RELEASE STEPS — Only from tags OR manual release
+      # -------------------------------------------
+      # - name: Publish to NuGet
+      #   if: |
+      #     startsWith(github.ref, 'refs/tags/v')
+      #     || (github.event_name == 'workflow_dispatch' && inputs.create_release == 'true')
+      #   run: |
+      #     nuget push artifacts\*.nupkg `
+      #       -Source https://api.nuget.org/v3/index.json `
+      #       -ApiKey $env:NUGET_API_KEY `
+      #       -SkipDuplicate
+      #   env:
+      #     NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+      # - name: Create GitHub Release
+      #   if: |
+      #     startsWith(github.ref, 'refs/tags/v')
+      #     || (github.event_name == 'workflow_dispatch' && inputs.create_release == 'true')
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: v${{ steps.gitversion.outputs.SemVer }}
+      #     name: Release ${{ steps.gitversion.outputs.SemVer }}
+      #     generate_release_notes: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package:
+    name: Push Packages
+    runs-on: ubuntu-latest
+    needs: ci
+    if: needs.ci.ouputs.should_release == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Packaging Options
+        run: |
+          echo "should_release = ${{ needs.ci.outputs.should_release }}"
+          echo "image_version  = ${{ needs.ci.outputs.image_version }}"
+          echo "image_name     = ${{ needs.ci.outputs.image_name }}"
+
