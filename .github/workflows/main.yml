@@ -29,6 +29,11 @@ jobs:
     name: CI
     runs-on: windows-latest
 
+    outputs:
+      should_release: ${{ steps.gates.outputs.should_release }}
+      image_version:  ${{ steps.compute.outputs.image_version }}
+      image_name:     ${{ steps.compute.outputs.image_name }}
+
     steps:
       # -------------------------------------------
       # Checkout
@@ -197,6 +202,7 @@ jobs:
       # Neutralize AssemblyInfo version attributes
       # -------------------------------------------
       - name: Compute Image Name and Version
+        id: compute
         #if: steps.gates.outputs.should_release
         run: |
             $imageName = "my-image"
