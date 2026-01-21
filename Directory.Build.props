@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <!-- These get overridden by CI -->
+    <Version>0.0.0</Version>
+    <AssemblyVersion>0.0.0.0</AssemblyVersion>
+    <FileVersion>0.0.0.0</FileVersion>
+    <InformationalVersion>0.0.0</InformationalVersion>
+
+    <!-- Ensures AssemblyInfo.cs does NOT override these -->
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+</Project>

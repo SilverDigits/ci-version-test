@@ -1,0 +1,141 @@
+name: Push OCI Image
+
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: "Name of the build artifact to download (e.g. 'PRMDS-Release')"
+        required: true
+        type: string
+      tags:
+        description: "Comma-separated list of tags to apply (e.g. 'latest,stable')"
+        required: false
+        default: "latest"
+        type: string
+      package_suffix:
+        description: "Suffix for package name (e.g. 'myapp' for ghcr.io/org/repo-myapp)"
+        required: false
+        type: string
+#      artifact_media_type:
+#        required: false
+#        default: "application/vnd.rrsf.msbuild.solution.layer.v1+tar"
+#        type: string
+      dry_run:
+        description: "If true, do not push to GHCR"
+        required: false
+        default: true
+        type: boolean
+    secrets:
+      CR_GH_USERNAME:
+        description: "GitHub username (or org actor) for GHCR login"
+        required: true
+      CR_GH_PAT:
+        description: "PAT (classic) with write:packages (and optionally delete:packages)"
+        required: true
+    outputs:
+      digest:
+        description: "Pushed manifest digest"
+        value: ${{ jobs.push.outputs.digest }}
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.resolve.outputs.digest }}
+
+#    env:
+#      # Auto: repo owner + package name composed here
+#      # GHCR_REPO: ${{ 'ghcr.io/' + github.repository_owner + '/' + inputs.package_suffix | toLower }}
+#      GHCR_REPO: >-
+#        ${{ 
+#          (
+#            'ghcr.io/' 
+#            + github.repository 
+#            + (inputs.package_suffix && inputs.package_suffix != '' 
+#                ? '/' + inputs.package_suffix 
+#                : '')
+#          ) 
+#          | toLower 
+#        }}
+#      #GHCR_REPO: ghcr.io/${{ github.repository_owner }}/${{ inputs.package_suffix }}
+#      # Auto: link back to the repo that invoked this workflow
+#      REPO_SOURCE_URL: https://github.com/${{ github.repository }}
+    
+    steps:
+      - name: Set environment variables
+        id: set-evn-vars
+        run: |
+          if [ -n "${{ inputs.package_suffix }}" ]; then
+            echo "GHCR_REPO=ghcr.io/${{ github.repository }}/${{ inputs.package_suffix }}" >> $GITHUB_ENV
+          else
+            echo "GHCR_REPO=ghcr.io/${{ github.repository }}" >> $GITHUB_ENV
+          fi
+          echo "REPO_SOURCE_URL=https://github.com/${{ github.repository }}" >> $GITHUB_ENV
+
+      - name: Show computed registry values
+#        if: ${{ inputs.dry_run }}
+        run: |
+          echo "GHCR_REPO=${GHCR_REPO}"
+          echo "REPO_SOURCE_URL=${REPO_SOURCE_URL}"
+          echo "TAGS=${{ inputs.tags }}"
+
+      - name: Download PRMDS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: build
+
+#      - name: Create layer with 'build/' at root
+#        run: tar -C "layer-temp" -cvf layer.tar build
+
+      - name: Setup ORAS
+        uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6
+  
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.CR_GH_USERNAME }}
+          password: ${{ secrets.CR_GH_PAT }}
+
+      - name: Push OCI image to GHCR
+        if: ${{ !inputs.dry_run }}
+        run: |
+          echo "{}" > /tmp/config.json
+
+          oras push ${GHCR_REPO}:sha-${GITHUB_SHA::7} \
+            --config /tmp/config.json:application/vnd.rrsf.msbuild.config.v1 \
+            ./build/:application/vnd.rrsf.msbuild.solution.layer.v1+tar \
+            --annotation org.opencontainers.image.source=${REPO_SOURCE_URL}
+          
+          # apply tags if passed
+          if [ -n "${{ inputs.tags }}" ]; then
+            IFS=',' read -ra TAGS <<< "${{ inputs.tags }}"
+            for TAG in "${TAGS[@]}"; do
+              TAG_TRIMMED=$(echo "$TAG" | xargs)
+              oras tag ${GHCR_REPO}:sha-${GITHUB_SHA::7} "$TAG_TRIMMED"
+            done
+          else
+              # Default to 'latest' if no tags provided
+              oras tag ${GHCR_REPO}:sha-${GITHUB_SHA::7} latest
+          fi
+
+      - name: Obtain image digest
+        if: ${{ !inputs.dry_run }}
+        id: digest
+        run: |
+          digest=$(oras manifest fetch --format go-template --template '{{ .digest }}' ${{ env.GHCR_REPO }}:sha-${GITHUB_SHA::7})
+          echo "digest=$digest" >> $GITHUB_OUTPUT
+
+      - name: Generate artifact attestation
+        if: ${{ !inputs.dry_run }}
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ${{ env.GHCR_REPO }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
