@@ -6,7 +6,10 @@ runs:
     - name: Ensure Directory.Build.props exists
       shell: pwsh
       run: |
-        $propsPath = "Directory.Build.props"
+    
+
+        #$propsPath = "Directory.Build.props"
+        $propsPath = [System.IO.Path]::GetFullPath("Directory.Build.props")
 
         function New-PropsXml{
             $doc = New-Object System.Xml.XmlDocument
@@ -112,6 +115,35 @@ runs:
       if: ${{ inputs.neutralizeAssemblyInfo }} == 'true'
       shell: pwsh
       run: |
+        $version = '${{ inputs.assemblyVersion }}'
+        $fileVersion = '${{ inputs.fileVersion }}'
+        $infoVersion = '${{ inputs.infoVersion }}'
+
+        $rootPath = [System.IO.Path]::GetFullPath("./")
+        Write-Host "Search Root  = $rootPath"
+        Write-Host "Version      = $version"
+        Write-Host "File Version = $fileVersion"
+        Write-Host "Info Version = $infoVersion"
+       
+        if($version -match "^\d+\.\d+\.\d+$") {
+            $version = "$version`.0"
+        }elseif($version -notmatch "^\d+\.\d+\.\d+\.\d+$") {
+            Write-Error "Invalid version '$version', should be in the format '#.#.#' or '#.#.#.#'."
+        }
+        if($fileVersion -match "^\d+\.\d+\.\d+$") {
+            $fileVersion = "$fileVersion`.0"
+        }elseif($fileVersion -notmatch "^\d+\.\d+\.\d+\.\d+$") {
+            Write-Error "Invalid fileVersion '$fileVersion', should be in the format '#.#.#' or '#.#.#.#'."
+        }
+        if($infoVersion -notmatch "^\d+\.\d+\.\d+[\+\-]") {
+            Write-Error "Invalid fileVersion '$infoVersion', should start with '#.#.#-' or '#.#.#.#+'."
+        }
+
+        Write-Host "Normalized Versions:"
+        Write-Host "Version      = $version"
+        Write-Host "File Version = $fileVersion"
+        Write-Host "Info Version = $infoVersion"
+        
         $patterns = @(
             '^\s*\[\s*assembly\s*:\s*AssemblyVersion\s*\(',
             '^\s*\[\s*assembly\s*:\s*AssemblyFileVersion\s*\(',
@@ -125,37 +157,49 @@ runs:
         )
 
         $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs, AssemblyInfo.vb -ErrorAction SilentlyContinue
-
         foreach ($file in $files) {
+            Write-Host "Found AssemblyInfo File`: $file"
+
             $lines = Get-Content -LiteralPath $file.FullName
             $changed = $false
 
             for ($i = 0; $i -lt $lines.Length; $i++) {
-            $line = $lines[$i]
+                $line = $lines[$i]
 
-            if ($file.Extension -eq '.cs') {
-                if ($patterns | Where-Object { $line -match $_ }) {
-                if ($line -notmatch '^\s*//') {
-                    $lines[$i] = "// $line"
-                    $changed = $true
+                if ($file.Extension -eq '.cs') {
+                    if ($patterns | Where-Object { $line -match $_ }) {
+                        if ($line -notmatch '^\s*//') {
+                            $lines[$i] = "// $line"
+                            $changed = $true
+                        }
+                    }
                 }
+                else {
+                    if ($vbPatterns | Where-Object { $line -match $_ }) {
+                        if ($line -notmatch "^\s*'") {
+                            $lines[$i] = "`' $line"
+                            $changed = $true
+                        }
+                    }
                 }
             }
-            else {
-                if ($vbPatterns | Where-Object { $line -match $_ }) {
-                if ($line -notmatch "^\s*'") {
-                    $lines[$i] = "`' $line"
-                    $changed = $true
-                }
-                }
-            }
-            }
+
+            $lines += "//Injected by Workflow"
+            $lines += "[assembly: AssemblyVersion(`"$version`")]"
+            $lines += "[assembly: AssemblyFileVersion(`"$fileVersion`")]"
+            $lines += "[assembly: AssemblyInformationalVersion(`"$infoVersion`")]"
 
             if ($changed) {
-            Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
-            Write-Host "Neutralized version attributes in $($file.FullName)"
+                Write-Host "Neutralized version attributes in $($file.FullName)"
             }
+            Write-Host "New File:"
+            for ($i = 0; $i -lt $lines.Length; $i++) {
+                $line = $lines[$i]
+                Write-Host "$line"
+            }
+            Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
         }
+
 
     - name: Validate no hard-coded version attributes remain
       if: ${{ inputs.neutralizeAssemblyInfo }} == 'true'
