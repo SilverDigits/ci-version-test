@@ -25,6 +25,7 @@ permissions:
 
 env:
     SLN_PATH: ci-version-test.sln
+    PUBLISH_PROJ_PATHS: "/src/TestAppOne/TestAppOne.csproj;/src/TestAppOne/TestAppOne.csproj"
     ASSEMBLY_COPYRIGHT: "Copyright (c) Silver Digits LLC."
     GHCR_REPO: ghcr.io/silverdigits/ci-version-test
 
@@ -141,153 +142,69 @@ jobs:
       # -------------------------------------------
       # Setup Build Environment
       # -------------------------------------------
-      # - name: Setup NuGet
-      #   uses: NuGet/setup-nuget@v2
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
 
-      # - name: Set up MSBuild
-      #   uses: microsoft/setup-msbuild@v2
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
 
       # - name: Set up NuGet authentication
       #   run: nuget sources Add -Name "rrglobal" -Source "https://nuget.pkg.github.com/rrglobal/index.json" -Username "rollsroycebot" -Password ${{ secrets.ROLLSROYCEBOT_PAT }}
 
-      # - name: Restore NuGet packages
-      #   run: nuget restore "$env:SLN_PATH"
+      - name: Restore NuGet packages
+        run: nuget restore "$env:SLN_PATH"
 
-      - name: Setup Variables
-        shell: pwsh
+      - name: Update Directory.Build.props
+        uses: ./.github/actions/update-dir-build-props
+        with:
+          version: ${{ steps.gitversion.outputs.semVer }}
+          assemblyVersion: ${{ steps.gitversion.outputs.assemblySemVer }}
+          fileVersion: ${{ steps.gitversion.outputs.assemblySemFileVer }}
+          infoVersion: ${{ steps.gitversion.outputs.informationalVersion }}
+
+
+
+
+      - name: Build Solution (Release)
         run: |
-            $year = (Get-Date).Year
-            Add-Content -Path $env:GITHUB_ENV -Value "ASSEMBLY_COPYRIGHT=$env:ASSEMBLY_COPYRIGHT $year"
-            $shortSha = $env:GITHUB_SHA.Substring(0,7)
-            Add-Content -Path $env:GITHUB_ENV -Value "ASSEMBLY_INFO_VERSION=$shortSha"
+            msbuild "$env:SLN_PATH" `
+            /t:Build `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU" `
+            /m `
+            /v:m
 
-      - name: Update Directory.Build.props with Version Info
-        run: |
-            $propsPath = "Directory.Build.props"
+      - name: Publish TestAppOne
+        uses: ./.github/actions/publish-webapp
+        with:
+          project-file: "src/TestAppOne/TestAppOne.csproj"
+          output-path:  "${{ env.PUBLISH_ROOT }}/TestAppOne/"
 
-            function New-PropsXml{
-                $doc = New-Object System.Xml.XmlDocument
-
-                # XML declaration
-                $xmlDecl = $doc.CreateXmlDeclaration('1.0','utf-8',$null)
-                $doc.AppendChild($xmlDecl) | Out-Null
-
-                # <Project Sdk="Microsoft.NET.Sdk">
-                $project = $doc.CreateElement('Project')
-                # NOTE: Directory.Build.props typically doesn't need Sdk attr, but it's harmless if present.
-                # If you prefer no Sdk attr, comment the next line.
-                # $project.SetAttribute('Sdk','Microsoft.NET.Sdk') 
-                $doc.AppendChild($project) | Out-Null
-
-                # <PropertyGroup>
-                $pg = $doc.CreateElement('PropertyGroup')
-                $project.AppendChild($pg) | Out-Null
-
-                return $doc
-            }
-            [xml]$xml = $null
-            if(Test-Path $propsPath) {
-                try {
-                    $xml = [xml](Get-Content $propsPath)
-                }catch{
-                    Write-Warning "Existing $propsPath was not valid XML. Recreating."
-                    $xml = New-PropsXml
-                }
-                #Write-Error "Directory.Build.props not found at path: $propsPath"
-                #exit 1
-            }else{
-                Write-Warning "Creating new $propsPath"
-                $xml = New-PropsXml
-            }
-
-            # Ensure <Project> root exists
-            if (-not $xml.Project) {
-              $project = $xml.CreateElement('Project')
-              $null = $xml.AppendChild($project)
-            } else {
-              $project = $xml.Project
-            }
-
-            # Ensure there is at least one <PropertyGroup>
-            $pg = $project.PropertyGroup
-            if (-not $pg) {
-              $pg = $xml.CreateElement('PropertyGroup')
-              $null = $project.AppendChild($pg)
-            }
-
-            # Helper: set or create a property in the first PropertyGroup
-            function Set-XmlProp([string]$name, [string]$value) {
-              if ([string]::IsNullOrWhiteSpace($value)) { return }
-              $node = $pg.SelectSingleNode($name)
-              if (-not $node) {
-                $node = $xml.CreateElement($name)
-                $null = $pg.AppendChild($node)
-              }
-              $node.InnerText = $value
-            }
-
-            # Pull values from GitVersion step outputs
-            $SemVer               = '${{ steps.gitversion.outputs.semVer }}'
-            $AssemblySemVer       = '${{ steps.gitversion.outputs.assemblySemVer }}'
-            $FileSemVer           = '${{ steps.gitversion.outputs.assemblySemFileVer }}'  # good for FileVersion
-            $InformationalVersion = '${{ steps.gitversion.outputs.informationalVersion }}'
-
-            # Map to MSBuild properties
-            Set-XmlProp 'Version'              $SemVer
-            Set-XmlProp 'AssemblyVersion'      $AssemblySemVer
-            Set-XmlProp 'FileVersion'          $FileSemVer
-            Set-XmlProp 'InformationalVersion' $InformationalVersion
-
-            # Save with indentation and UTF-8
-            $settings = New-Object System.Xml.XmlWriterSettings
-            $settings.Indent = $true
-            $settings.IndentChars = "  "
-            $settings.NewLineOnAttributes = $false
-            $settings.Encoding = New-Object System.Text.UTF8Encoding($false) # no BOM; change to ($true) for BOM
-
-            # $writer = [System.Xml.XmlWriter]::Create((Resolve-Path $propsPath), $settings)
-            # $xml.Save($writer)
-            # $writer.Flush()
-            # $writer.Dispose()
-
-            Write-Warning "Updated $propsPath with version info from GitVersion."
-            Write-Warning "$($xml.OuterXml)"
-            # msbuild "$env:SLN_PATH" `
-            # /t:UpdateVersionInfo `
-            # /p:Version=$env:GitVersion_SemVer `
-            # /p:AssemblyVersion=$env:GitVersion_AssemblySemVer `
-            # /p:FileVersion=$env:GitVersion_AssemblyFileSemVer `
-            # /p:InformationalVersion=$env:GitVersion_InformationalVersion
+      - name: Publish TestAppTwo
+        uses: ./.github/actions/publish-webapp
+        with:
+          project-file: "src/TestAppOne/TestAppTwo.csproj"
+          output-path:  "${{ env.PUBLISH_ROOT }}/TestAppTwo/"
 
 
-
-
-      # - name: Build Solution (Release)
+      # - name: Publish TestAppOne
       #   run: |
-      #       msbuild "$env:SLN_PATH" `
-      #       /t:Build `
-      #       /p:Configuration=Release `
-      #       /p:Platform="Any CPU" `
-      #       /m `
-      #       /v:m
-
-      # - name: Publish PRMDS (copy built outputs)
-      #   run: |
-      #       msbuild "Source\PRMDS.Web\PRMDS.Web.csproj" `
+      #       msbuild "src\TestAppOne\TestAppOne.csproj" `
       #       /t:PipelinePreDeployCopyAllFilesToOneFolder `
       #       /p:Configuration=Release `
-      #       /p:_PackageTempDir="$env:PUBLISH_ROOT\PRMDS\" `
+      #       /p:_PackageTempDir="$env:PUBLISH_ROOT\TestAppOne\" `
       #       /p:BuildProjectReferences=false `
       #       /v:m
 
-      # - name: Build (.NET Framework via MSBuild)
-      #   run: msbuild "$env:SLN_PATH" `
-      #         /t:PipelinePreDeployCopyAllFilesToOneFolder `
-      #         /p:Configuration=Release `
-      #         /p:Version=$env:GitVersion_SemVer `
-      #         /p:AssemblyVersion=$env:GitVersion_AssemblySemVer `
-      #         /p:FileVersion=$env:GitVersion_AssemblyFileSemVer `
-      #         /p:InformationalVersion=$env:GitVersion_InformationalVersion
+      # - name: Publish TestAppTwo
+      #   run: |
+      #       msbuild "src\TestAppTwo\TestAppTwo.csproj" `
+      #       /t:PipelinePreDeployCopyAllFilesToOneFolder `
+      #       /p:Configuration=Release `
+      #       /p:_PackageTempDir="$env:PUBLISH_ROOT\TestAppTwo\" `
+      #       /p:BuildProjectReferences=false `
+      #       /v:m
+
 
       # -------------------------------------------
       # Neutralize AssemblyInfo version attributes

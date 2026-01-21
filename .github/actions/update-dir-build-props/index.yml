@@ -1,0 +1,143 @@
+name: 'Update Directory.Build.props'
+description: 'Update Directory.Build.props for .NET projects'
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure Directory.Build.props exists
+ 
+      - name: Publish TestAppOne
+        run: |
+            msbuild "src\TestAppOne\TestAppOne.csproj" `
+            /t:PipelinePreDeployCopyAllFilesToOneFolder `
+            /p:Configuration=Release `
+            /p:_PackageTempDir="$env:PUBLISH_ROOT\TestAppOne\" `
+            /p:BuildProjectReferences=false `
+            /v:m
+
+
+
+#             Set-XmlProp 'Version'              $SemVer
+#             Set-XmlProp 'AssemblyVersion'      $AssemblySemVer
+#             Set-XmlProp 'FileVersion'          $FileSemVer
+#             Set-XmlProp 'InformationalVersion' $InformationalVersion
+
+
+#             $SemVer               = '${{ steps.gitversion.outputs.semVer }}'
+#             $AssemblySemVer       = '${{ steps.gitversion.outputs.assemblySemVer }}'
+#             $FileSemVer           = '${{ steps.gitversion.outputs.assemblySemFileVer }}'  # good for FileVersion
+#             $InformationalVersion = '${{ steps.gitversion.outputs.informationalVersion }}'
+
+
+
+# - name: Update Directory.Build.props with Version Info
+#         run: |
+#             $propsPath = "Directory.Build.props"
+
+#             function New-PropsXml{
+#                 $doc = New-Object System.Xml.XmlDocument
+
+#                 # XML declaration
+#                 $xmlDecl = $doc.CreateXmlDeclaration('1.0','utf-8',$null)
+#                 $doc.AppendChild($xmlDecl) | Out-Null
+
+#                 # <Project Sdk="Microsoft.NET.Sdk">
+#                 $project = $doc.CreateElement('Project')
+#                 # NOTE: Directory.Build.props typically doesn't need Sdk attr, but it's harmless if present.
+#                 # If you prefer no Sdk attr, comment the next line.
+#                 # $project.SetAttribute('Sdk','Microsoft.NET.Sdk') 
+#                 $doc.AppendChild($project) | Out-Null
+
+#                 # <PropertyGroup>
+#                 $pg = $doc.CreateElement('PropertyGroup')
+#                 $project.AppendChild($pg) | Out-Null
+
+#                 return $doc
+#             }
+#             [xml]$xml = $null
+#             if(Test-Path $propsPath) {
+#                 try {
+#                     $xml = [xml](Get-Content $propsPath)
+#                 }catch{
+#                     Write-Warning "Existing $propsPath was not valid XML. Recreating."
+#                     $xml = New-PropsXml
+#                 }
+#                 #Write-Error "Directory.Build.props not found at path: $propsPath"
+#                 #exit 1
+#             }else{
+#                 Write-Warning "Creating new $propsPath"
+#                 $xml = New-PropsXml
+#             }
+
+#             # Ensure <Project> root exists
+#             if (-not $xml.Project) {
+#               $project = $xml.CreateElement('Project')
+#               $null = $xml.AppendChild($project)
+#             } else {
+#               $project = $xml.Project
+#             }
+
+#             # Ensure there is at least one <PropertyGroup>
+#             $pg = $project.PropertyGroup
+#             if (-not $pg) {
+#               $pg = $xml.CreateElement('PropertyGroup')
+#               $null = $project.AppendChild($pg)
+#             }
+
+#             # Helper: set or create a property in the first PropertyGroup
+#             function Set-XmlProp([string]$name, [string]$value) {
+#               if ([string]::IsNullOrWhiteSpace($value)) { return }
+#               $node = $pg.SelectSingleNode($name)
+#               if (-not $node) {
+#                 $node = $xml.CreateElement($name)
+#                 $null = $pg.AppendChild($node)
+#               }
+#               $node.InnerText = $value
+#             }
+
+#             # Pull values from GitVersion step outputs
+#             $SemVer               = '${{ steps.gitversion.outputs.semVer }}'
+#             $AssemblySemVer       = '${{ steps.gitversion.outputs.assemblySemVer }}'
+#             $FileSemVer           = '${{ steps.gitversion.outputs.assemblySemFileVer }}'  # good for FileVersion
+#             $InformationalVersion = '${{ steps.gitversion.outputs.informationalVersion }}'
+
+#             # Map to MSBuild properties
+#             Set-XmlProp 'Version'              $SemVer
+#             Set-XmlProp 'AssemblyVersion'      $AssemblySemVer
+#             Set-XmlProp 'FileVersion'          $FileSemVer
+#             Set-XmlProp 'InformationalVersion' $InformationalVersion
+
+#             # Save with indentation and UTF-8
+#             $settings = New-Object System.Xml.XmlWriterSettings
+#             $settings.Indent = $true
+#             $settings.IndentChars = "  "
+#             $settings.NewLineOnAttributes = $false
+#             $settings.Encoding = New-Object System.Text.UTF8Encoding($false) # no BOM; change to ($true) for BOM
+
+#             $writer = [System.Xml.XmlWriter]::Create((Resolve-Path $propsPath), $settings)
+#             $xml.Save($writer)
+#             $writer.Flush()
+#             $writer.Dispose()
+
+#             Write-Warning "Updated $propsPath with version info from GitVersion."
+#             Write-Warning "$($xml.OuterXml)"
+#             # msbuild "$env:SLN_PATH" `
+#             # /t:UpdateVersionInfo `
+#             # /p:Version=$env:GitVersion_SemVer `
+#             # /p:AssemblyVersion=$env:GitVersion_AssemblySemVer `
+#             # /p:FileVersion=$env:GitVersion_AssemblyFileSemVer `
+#             # /p:InformationalVersion=$env:GitVersion_InformationalVersion
+
+inputs:
+  version:
+    description: 'Version (e.g., 1.0.0)'
+    required: true
+  assemblyVersion:
+    description: 'Assembly version (e.g., 1.0.0)'
+    required: true
+  fileVersion:
+    description: 'File version (e.g., 1.0.0)'
+    required: true
+  infoVersion:
+    description: 'Informational Version (e.g., 1.0.0-rc+build-main-sha...)'
+    required: true
+

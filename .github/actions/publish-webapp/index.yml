@@ -1,0 +1,21 @@
+name: 'Publish Web App'
+description: 'Publish .NET Framework Web Application'
+runs:
+  using: "composite"
+  steps:
+    - name: Publish
+      shell: pwsh
+      run: |
+        msbuild "${{ inputs.project-file }}" `
+        /t:PipelinePreDeployCopyAllFilesToOneFolder `
+        /p:Configuration=Release `
+        /p:_PackageTempDir="${{ inputs.output-path }}" `
+        /p:BuildProjectReferences=false `
+        /v:m
+inputs:
+  project-file:
+    description: 'Path to the .csproj file of the web application'
+    required: true
+  output-path:
+    description: 'Output path for published web app'
+    required: true
