@@ -141,17 +141,17 @@ jobs:
       # -------------------------------------------
       # Setup Build Environment
       # -------------------------------------------
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
+      # - name: Setup NuGet
+      #   uses: NuGet/setup-nuget@v2
 
-      - name: Set up MSBuild
-        uses: microsoft/setup-msbuild@v2
+      # - name: Set up MSBuild
+      #   uses: microsoft/setup-msbuild@v2
 
       # - name: Set up NuGet authentication
       #   run: nuget sources Add -Name "rrglobal" -Source "https://nuget.pkg.github.com/rrglobal/index.json" -Username "rollsroycebot" -Password ${{ secrets.ROLLSROYCEBOT_PAT }}
 
-      - name: Restore NuGet packages
-        run: nuget restore "$env:SLN_PATH"
+      # - name: Restore NuGet packages
+      #   run: nuget restore "$env:SLN_PATH"
 
       - name: Setup Variables
         shell: pwsh
@@ -251,7 +251,7 @@ jobs:
             # $writer.Dispose()
 
             Write-Warning "Updated $propsPath with version info from GitVersion."
-            Write-Warning "{$xml.InnerXml}"
+            Write-Warning "{$xml.OuterXml}"
             # msbuild "$env:SLN_PATH" `
             # /t:UpdateVersionInfo `
             # /p:Version=$env:GitVersion_SemVer `
