@@ -72,19 +72,21 @@ jobs:
           "should_release=$shouldRelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       # -------------------------------------------
-      # Setup GitVersion 6.4.x setup
+      # Setup GitVersion
       # -------------------------------------------
+      # v4.2.0 = d0139503a9321f76b4a417dfdc8aebcec24decdd
       - name: Setup GitVersion
-        uses: gittools/actions/gitversion/setup@v4.2.0
+        uses: gittools/actions/gitversion/setup@d0139503a9321f76b4a417dfdc8aebcec24decdd
         with:
           versionSpec: '6.4.x'
 
       # -------------------------------------------
       # Determine Version
       # -------------------------------------------
+      # v4.2.0 = d0139503a9321f76b4a417dfdc8aebcec24decdd
       - name: Determine Version
         id: gitversion
-        uses: gittools/actions/gitversion/execute@v4.2.0
+        uses: gittools/actions/gitversion/execute@d0139503a9321f76b4a417dfdc8aebcec24decdd
 
       - name: Display Versions
         run: |
