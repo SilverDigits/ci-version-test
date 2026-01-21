@@ -26,6 +26,7 @@ permissions:
 
 jobs:
   ci:
+    name: CI
     runs-on: windows-latest
 
     steps:
@@ -186,19 +187,19 @@ jobs:
               Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
             }
 
-  # package:
-  #   name: Push Packages
-  #   runs-on: ubuntu-latest
-  #   needs: ci
-  #   if: needs.ci.ouputs.should_release == 'true'
+  package:
+    name: Push Packages
+    runs-on: ubuntu-latest
+    needs: ci
+    #if: needs.ci.ouputs.should_release == 'true'
 
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  #     - name: Packaging Options
-  #       run: |
-  #         echo "should_release = ${{ needs.ci.outputs.should_release }}"
-  #         echo "image_version  = ${{ needs.ci.outputs.image_version }}"
-  #         echo "image_name     = ${{ needs.ci.outputs.image_name }}"
+      - name: Packaging Options
+        run: |
+          echo "should_release = ${{ needs.ci.outputs.should_release }}"
+          echo "image_version  = ${{ needs.ci.outputs.image_version }}"
+          echo "image_name     = ${{ needs.ci.outputs.image_name }}"
 
