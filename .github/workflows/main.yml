@@ -155,6 +155,9 @@ jobs:
       - name: Restore NuGet packages
         run: nuget restore "$env:SLN_PATH"
 
+      # -------------------------------------------
+      # Inject Build Versions
+      # -------------------------------------------
       - name: Update Directory.Build.props
         uses: ./.github/actions/update-dir-build-props
         with:
@@ -164,6 +167,21 @@ jobs:
           infoVersion: ${{ steps.gitversion.outputs.informationalVersion }}
           neutralizeAssemblyInfo: true
 
+
+      # -------------------------------------------
+      # Debug Build Versions
+      # -------------------------------------------
+      - name: Debug Build Versions
+        shell: pwsh
+        run: |
+            Write-Host "After Update Directory.Build.props:"
+            $dirBuildPropsPath = Join-Path -Path $env:GITHUB_WORKSPACE -ChildPath "Directory.Build.props"
+            $rawText = Get-Content -Path $dirBuildPropsPath -Raw
+            Write-Warning "Directory.Build.props contents:`n$rawText"
+
+      # -------------------------------------------
+      # Setup Build Environment
+      # -------------------------------------------
       - name: Build Solution (Release)
         run: |
             msbuild "$env:SLN_PATH" `
