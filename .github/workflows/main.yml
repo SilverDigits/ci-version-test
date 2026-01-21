@@ -251,7 +251,7 @@ jobs:
             # $writer.Dispose()
 
             Write-Warning "Updated $propsPath with version info from GitVersion."
-            Write-Warning "{$xml.OuterXml}"
+            Write-Warning "$($xml.OuterXml)"
             # msbuild "$env:SLN_PATH" `
             # /t:UpdateVersionInfo `
             # /p:Version=$env:GitVersion_SemVer `
