@@ -53,6 +53,8 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - uses: actions/checkout@v4
+  
       # -------------------------------------------
       # Compute Release Gates
       # -------------------------------------------
@@ -161,9 +163,6 @@ jobs:
           assemblyVersion: ${{ steps.gitversion.outputs.assemblySemVer }}
           fileVersion: ${{ steps.gitversion.outputs.assemblySemFileVer }}
           infoVersion: ${{ steps.gitversion.outputs.informationalVersion }}
-
-
-
 
       - name: Build Solution (Release)
         run: |
