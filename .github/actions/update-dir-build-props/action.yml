@@ -4,6 +4,7 @@ runs:
   using: "composite"
   steps:
     - name: Ensure Directory.Build.props exists
+      shell: pwsh
       run: |
         $propsPath = "Directory.Build.props"
 
