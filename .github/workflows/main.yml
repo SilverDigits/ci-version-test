@@ -161,7 +161,6 @@ jobs:
       - name: Update Directory.Build.props
         uses: ./.github/actions/update-dir-build-props
         with:
-          solutionFile: ${{ github.workspace }}\${{ env.SLN_PATH }}
           version: ${{ steps.gitversion.outputs.semVer }}
           assemblyVersion: ${{ steps.gitversion.outputs.assemblySemVer }}
           fileVersion: ${{ steps.gitversion.outputs.assemblySemFileVer }}
