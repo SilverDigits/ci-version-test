@@ -199,10 +199,12 @@ jobs:
       - name: Compute Image Name and Version
         #if: steps.gates.outputs.should_release
         run: |
-          $imageName = "my-image"
-          $imageVersion = $env:GitVersion_SemVer
-          Write-Host "image_name = $imageName"
-          Write-Host "image_version = $imageVersion"
+            $imageName = "my-image"
+            $imageVersion = $env:GitVersion_SemVer         
+            "image_version=$imageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "image_name=$imageName"       | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Write-Host "image_name = $imageName"
+            Write-Host "image_version = $imageVersion"
 
   package:
     name: Build Deployment Package(s)
