@@ -26,7 +26,7 @@ permissions:
 env:
     SLN_PATH: ci-version-test.sln
     PUBLISH_PROJ_PATHS: "/src/TestAppOne/TestAppOne.csproj;/src/TestAppOne/TestAppOne.csproj"
-    ASSEMBLY_COPYRIGHT: "Copyright (c) Silver Digits LLC."
+    ASSEMBLY_COPYRIGHT: "Copyright (c) Silver Digits LLC. {YEAR}"
     GHCR_REPO: ghcr.io/silverdigits/ci-version-test
 
 jobs:
@@ -162,6 +162,7 @@ jobs:
           assemblyVersion: ${{ steps.gitversion.outputs.assemblySemVer }}
           fileVersion: ${{ steps.gitversion.outputs.assemblySemFileVer }}
           infoVersion: ${{ steps.gitversion.outputs.informationalVersion }}
+          neutralizeAssemblyInfo: true
 
       - name: Build Solution (Release)
         run: |
@@ -181,7 +182,7 @@ jobs:
       - name: Publish TestAppTwo
         uses: ./.github/actions/publish-webapp
         with:
-          project-file: "src/TestAppOne/TestAppTwo.csproj"
+          project-file: "src/TestAppTwo/TestAppTwo.csproj"
           output-path:  "${{ env.PUBLISH_ROOT }}/TestAppTwo/"
 
 
@@ -207,70 +208,70 @@ jobs:
       # -------------------------------------------
       # Neutralize AssemblyInfo version attributes
       # -------------------------------------------
-      - name: Neutralize AssemblyInfo version attributes
-        shell: pwsh
-        run: |
-            $patterns = @(
-              '^\s*\[\s*assembly\s*:\s*AssemblyVersion\s*\(',
-              '^\s*\[\s*assembly\s*:\s*AssemblyFileVersion\s*\(',
-              '^\s*\[\s*assembly\s*:\s*AssemblyInformationalVersion\s*\('
-            )
+      # - name: Neutralize AssemblyInfo version attributes
+      #   shell: pwsh
+      #   run: |
+      #       $patterns = @(
+      #         '^\s*\[\s*assembly\s*:\s*AssemblyVersion\s*\(',
+      #         '^\s*\[\s*assembly\s*:\s*AssemblyFileVersion\s*\(',
+      #         '^\s*\[\s*assembly\s*:\s*AssemblyInformationalVersion\s*\('
+      #       )
 
-            $vbPatterns = @(
-              '^\s*<\s*Assembly\s*:\s*AssemblyVersion\s*\(',
-              '^\s*<\s*Assembly\s*:\s*AssemblyFileVersion\s*\(',
-              '^\s*<\s*Assembly\s*:\s*AssemblyInformationalVersion\s*\('
-            )
+      #       $vbPatterns = @(
+      #         '^\s*<\s*Assembly\s*:\s*AssemblyVersion\s*\(',
+      #         '^\s*<\s*Assembly\s*:\s*AssemblyFileVersion\s*\(',
+      #         '^\s*<\s*Assembly\s*:\s*AssemblyInformationalVersion\s*\('
+      #       )
 
-            $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs, AssemblyInfo.vb -ErrorAction SilentlyContinue
+      #       $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs, AssemblyInfo.vb -ErrorAction SilentlyContinue
 
-            foreach ($file in $files) {
-              $lines = Get-Content -LiteralPath $file.FullName
-              $changed = $false
+      #       foreach ($file in $files) {
+      #         $lines = Get-Content -LiteralPath $file.FullName
+      #         $changed = $false
 
-              for ($i = 0; $i -lt $lines.Length; $i++) {
-                $line = $lines[$i]
+      #         for ($i = 0; $i -lt $lines.Length; $i++) {
+      #           $line = $lines[$i]
 
-                if ($file.Extension -eq '.cs') {
-                  if ($patterns | Where-Object { $line -match $_ }) {
-                    if ($line -notmatch '^\s*//') {
-                      $lines[$i] = "// $line"
-                      $changed = $true
-                    }
-                  }
-                }
-                else {
-                  if ($vbPatterns | Where-Object { $line -match $_ }) {
-                    if ($line -notmatch "^\s*'") {
-                      $lines[$i] = "`' $line"
-                      $changed = $true
-                    }
-                  }
-                }
-              }
+      #           if ($file.Extension -eq '.cs') {
+      #             if ($patterns | Where-Object { $line -match $_ }) {
+      #               if ($line -notmatch '^\s*//') {
+      #                 $lines[$i] = "// $line"
+      #                 $changed = $true
+      #               }
+      #             }
+      #           }
+      #           else {
+      #             if ($vbPatterns | Where-Object { $line -match $_ }) {
+      #               if ($line -notmatch "^\s*'") {
+      #                 $lines[$i] = "`' $line"
+      #                 $changed = $true
+      #               }
+      #             }
+      #           }
+      #         }
 
-              if ($changed) {
-                Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
-                Write-Host "Neutralized version attributes in $($file.FullName)"
-              }
-            }
+      #         if ($changed) {
+      #           Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
+      #           Write-Host "Neutralized version attributes in $($file.FullName)"
+      #         }
+      #       }
 
-      - name: Validate no hard-coded version attributes remain
-        shell: pwsh
-        run: |
-            $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb -ErrorAction SilentlyContinue
-            if (-not $files) {
-                Write-Host "No AssemblyInfo.cs or AssemblyInfo.vb files found. Skipping version attribute validation."
-                exit 0
-            }
+      # - name: Validate no hard-coded version attributes remain
+      #   shell: pwsh
+      #   run: |
+      #       $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb -ErrorAction SilentlyContinue
+      #       if (-not $files) {
+      #           Write-Host "No AssemblyInfo.cs or AssemblyInfo.vb files found. Skipping version attribute validation."
+      #           exit 0
+      #       }
 
-            $hits = Select-String -Path $files `
-                -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
-                | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
+      #       $hits = Select-String -Path $files `
+      #           -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
+      #           | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
 
-            if ($hits) {
-                Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
-            }
+      #       if ($hits) {
+      #           Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
+      #       }
 
       # -------------------------------------------
       # Neutralize AssemblyInfo version attributes

@@ -76,6 +76,11 @@ runs:
         $FileSemVer           = '${{ inputs.fileVersion }}'  # good for FileVersion
         $InformationalVersion = '${{ inputs.infoVersion }}'
         $CompanyName          = '${{ inputs.company }}'
+        $CopyrightText        = '${{ inputs.copyright }}'
+        if($CopyrightText) {
+            $year = (Get-Date).Year
+            $CopyrightText = $CopyrightText -replace '\{year\}', $year
+        }
 
         # Map to MSBuild properties
         Set-XmlProp 'Version'              $SemVer
@@ -84,6 +89,9 @@ runs:
         Set-XmlProp 'InformationalVersion' $InformationalVersion
         if($CompanyName) {
             Set-XmlProp 'Company'           $CompanyName
+        }
+        if($CopyrightText) {
+            Set-XmlProp 'Copyright'         $CopyrightText
         }
         # Save with indentation and UTF-8
         $settings = New-Object System.Xml.XmlWriterSettings
@@ -99,6 +107,73 @@ runs:
 
         Write-Warning "Updated $propsPath with version info from GitVersion."
         Write-Warning "$($xml.OuterXml)"
+
+    - name: Neutralize AssemblyInfo version attributes
+      if: ${{ inputs.neutralizeAssemblyInfo }} == 'true'
+      shell: pwsh
+      run: |
+        $patterns = @(
+            '^\s*\[\s*assembly\s*:\s*AssemblyVersion\s*\(',
+            '^\s*\[\s*assembly\s*:\s*AssemblyFileVersion\s*\(',
+            '^\s*\[\s*assembly\s*:\s*AssemblyInformationalVersion\s*\('
+        )
+
+        $vbPatterns = @(
+            '^\s*<\s*Assembly\s*:\s*AssemblyVersion\s*\(',
+            '^\s*<\s*Assembly\s*:\s*AssemblyFileVersion\s*\(',
+            '^\s*<\s*Assembly\s*:\s*AssemblyInformationalVersion\s*\('
+        )
+
+        $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs, AssemblyInfo.vb -ErrorAction SilentlyContinue
+
+        foreach ($file in $files) {
+            $lines = Get-Content -LiteralPath $file.FullName
+            $changed = $false
+
+            for ($i = 0; $i -lt $lines.Length; $i++) {
+            $line = $lines[$i]
+
+            if ($file.Extension -eq '.cs') {
+                if ($patterns | Where-Object { $line -match $_ }) {
+                if ($line -notmatch '^\s*//') {
+                    $lines[$i] = "// $line"
+                    $changed = $true
+                }
+                }
+            }
+            else {
+                if ($vbPatterns | Where-Object { $line -match $_ }) {
+                if ($line -notmatch "^\s*'") {
+                    $lines[$i] = "`' $line"
+                    $changed = $true
+                }
+                }
+            }
+            }
+
+            if ($changed) {
+            Set-Content -LiteralPath $file.FullName -Value $lines -Encoding UTF8
+            Write-Host "Neutralized version attributes in $($file.FullName)"
+            }
+        }
+
+    - name: Validate no hard-coded version attributes remain
+      if: ${{ inputs.neutralizeAssemblyInfo }} == 'true'
+      shell: pwsh
+      run: |
+        $files = Get-ChildItem -Recurse -Include AssemblyInfo.cs,AssemblyInfo.vb -ErrorAction SilentlyContinue
+        if (-not $files) {
+            Write-Host "No AssemblyInfo.cs or AssemblyInfo.vb files found. Skipping version attribute validation."
+            exit 0
+        }
+
+        $hits = Select-String -Path $files `
+            -Pattern 'AssemblyVersion\(', 'AssemblyFileVersion\(', 'AssemblyInformationalVersion\(' `
+            | Where-Object { $_.Line -notmatch "^\s*(//|'')" }
+
+        if ($hits) {
+            Write-Error ("Hard-coded version attributes found:`n" + ($hits | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" } | Out-String))
+        }
 
 inputs:
   version:
@@ -116,4 +191,11 @@ inputs:
   company:
     description: 'Company Name (e.g., Silver Digits LLC)'
     required: false
+  copyright:
+    description: 'Copyright text to set in Directory.Build.props'
+    required: false
+  neutralizeAssemblyInfo:
+    description: 'If true, removes existing AssemblyVersion/FileVersion attributes from AssemblyInfo.cs/vb files to avoid conflicts.'
+    required: false
+    default: 'false'
 
